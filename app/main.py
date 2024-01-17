@@ -1,4 +1,3 @@
-import base64
 from functools import lru_cache
 from typing import List
 
@@ -10,7 +9,7 @@ from typing_extensions import Annotated
 
 from .config import GithubSettings
 from .models import GlobalParameters, UserDefinedFunctionLibrary
-from .utils import parse_udf_functions_with_comments
+from .parse import parse_global_parameters, parse_udf_functions_with_comments
 
 app = FastAPI()
 
@@ -59,10 +58,7 @@ def read_global_parameters(
 
         if res.ok:
             data = res.json()
-            decoded_bytes = base64.b64decode(data["content"])
-            decoded_str = str(decoded_bytes, "utf-8")
-            print(decoded_str)
-            global_parameters = GlobalParameters.model_validate_json(decoded_str)
+            global_parameters = parse_global_parameters(data["content"])
             return global_parameters
         else:
             return JSONResponse(
@@ -107,13 +103,7 @@ def read_user_defined_functions(
 
         if res.ok:
             data = res.json()
-            parsed_function_libraries = parse_udf_functions_with_comments(data)
-            udf_libraries = list(
-                map(
-                    lambda lib: UserDefinedFunctionLibrary(**lib),
-                    parsed_function_libraries,
-                )
-            )
+            udf_libraries = parse_udf_functions_with_comments(data)
             return udf_libraries
         else:
             return JSONResponse(

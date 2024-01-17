@@ -1,4 +1,7 @@
-from typing import List, Dict
+import base64
+from typing import Any, List, Dict
+
+from .models import GlobalParameters, UserDefinedFunctionLibrary
 
 
 def _get_content_for_tag(search_text: str, tag: str) -> str:
@@ -79,7 +82,27 @@ def _parse_function_content(single_function_string: str) -> Dict[str, str]:
     }
 
 
-def parse_udf_functions_with_comments(file_content: dict) -> List[Dict[str, str]]:
+def parse_global_parameters(file_content: str) -> GlobalParameters:
+    """
+    Parses Global Parameters from 'YOUR_DATA_FACTORY_GlobalParameters.json'.
+
+    Parameters
+    ----------
+    - file_content (str): String content of the json file.
+
+    Returns
+    -------
+    GlobalParameters
+    """
+    decoded_bytes = base64.b64decode(file_content)
+    decoded_str = str(decoded_bytes, "utf-8")
+    global_parameters = GlobalParameters.model_validate_json(decoded_str)
+    return global_parameters
+
+
+def parse_udf_functions_with_comments(
+    file_content: Dict[str, Any]
+) -> List[UserDefinedFunctionLibrary]:
     """
     Parses UDF functions with comments from an ARM template.
 
@@ -87,7 +110,8 @@ def parse_udf_functions_with_comments(file_content: dict) -> List[Dict[str, str]
     - file_content (dict): ARM template content.
 
     Returns:
-    List[Dict[str, str]]: List of dictionaries containing UDF information.
+    -------
+    List[UserDefinedFunctionLibrary]
     """
     resources = file_content.get("resources", [])
     udf_library = [
@@ -122,4 +146,10 @@ def parse_udf_functions_with_comments(file_content: dict) -> List[Dict[str, str]
         for index, lib in enumerate(udf_library)
     ]
 
-    return libraries
+    udf_libraries = list(
+        map(
+            lambda lib: UserDefinedFunctionLibrary(**lib),
+            libraries,
+        )
+    )
+    return udf_libraries

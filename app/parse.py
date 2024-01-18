@@ -64,7 +64,14 @@ def _parse_function_content(single_function_string: str) -> Dict[str, str]:
 
     declaration_content = single_function_string[:comment_start_index]
     function_name = declaration_content.split("(")[0].strip()
-    definition_content = single_function_string[comment_end_index:-2].strip()
+    print(single_function_string)
+    definition_end_index = -1
+    if single_function_string.strip().endswith(","):
+        definition_end_index = -2
+
+    definition_content = single_function_string[
+        comment_end_index:definition_end_index
+    ].strip()
 
     documentation_content = _get_content_for_tag(
         single_function_string, documentation_tags

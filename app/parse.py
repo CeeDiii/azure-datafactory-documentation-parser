@@ -1,4 +1,5 @@
 import base64
+import re
 from typing import Any, List, Dict
 
 from .models import GlobalParameters, UserDefinedFunctionLibrary
@@ -36,7 +37,15 @@ def _parse_isolated_function_strings(function_strings: List[str]) -> List[str]:
     single_function_string = ""
     isolated_function_strings = []
     for line in function_strings:
-        if "/*" in line and single_function_string != "":
+        function_pattern = r"[A-Za-z]+\(.*\)\sas\s[A-Za-z]+\s=\s([A-Za-z]+)?(\/\*)?"
+        # match strings of the form:
+        # CustomAdd(double, double) as double = add(i1, i2)
+        # CustomAdd(double, double) as double = /*
+        #                                       ^ start of a comment
+        if (
+            re.search(function_pattern, line) is not None
+            and single_function_string != ""
+        ):
             isolated_function_strings.append(single_function_string)
             single_function_string = ""
         line += "\n"
@@ -59,18 +68,28 @@ def _parse_function_content(single_function_string: str) -> Dict[str, str]:
     params_tag = ":Params:"
     example_tags = ":Example:"
 
+    declaration_start_index = 0
+    declaration_end_index = single_function_string.find("=")
+    definition_start_index = declaration_end_index + 1
+    definition_end_index = len(single_function_string) - 1
     comment_start_index = single_function_string.find("= /*")
     comment_end_index = single_function_string.find("*/") + len("*/")
 
-    declaration_content = single_function_string[:comment_start_index]
-    function_name = declaration_content.split("(")[0].strip()
-    print(single_function_string)
-    definition_end_index = -1
+    if comment_start_index != -1:
+        # assume user wrote a comment
+        declaration_end_index = comment_start_index
+        definition_start_index = comment_end_index
+
     if single_function_string.strip().endswith(","):
+        # this is valid for every function that is not the last one of a library
         definition_end_index = -2
 
+    declaration_content = single_function_string[
+        declaration_start_index:declaration_end_index
+    ].strip()
+    function_name = declaration_content.split("(")[0].strip()
     definition_content = single_function_string[
-        comment_end_index:definition_end_index
+        definition_start_index:definition_end_index
     ].strip()
 
     documentation_content = _get_content_for_tag(
@@ -134,6 +153,7 @@ def parse_udf_functions_with_comments(
     function_strings_by_library = [
         _parse_isolated_function_strings(strings) for strings in functions_strings
     ]
+
     functions = [
         [
             _parse_function_content(isolated_function_string)
@@ -147,7 +167,7 @@ def parse_udf_functions_with_comments(
             "name": lib.get("name", "")
             .replace("[concat(parameters('factoryName'), '/", "")
             .replace("')]", ""),
-            "description": lib.get("properties", {}).get("description", ""),
+            "description": lib.get("description", ""),
             "functions": functions[index],
         }
         for index, lib in enumerate(udf_library)
